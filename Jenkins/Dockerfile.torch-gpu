@@ -1,3 +1,4 @@
+# https://raw.githubusercontent.com/quic/aimet/develop/Jenkins/Dockerfile.torch-gpu
 # =============================================================================
 #  @@-COPYRIGHT-START-@@
 #
@@ -37,7 +38,7 @@
 # Docker image file to build and test AIMET for Tensorflow in a GPU environment
 
 ARG REGISTRY
-FROM ${REGISTRY}nvidia/cuda:11.7.1-cudnn8-devel-ubuntu22.04
+FROM ${REGISTRY}nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
@@ -133,14 +134,14 @@ RUN apt-get update > /dev/null && \
 
 # Python3 Packages
 RUN python3 -m pip --no-cache-dir install \
-        astroid==2.5.6 \
-        attrs>=19.1.0 \
-        behave==1.2.6 \
-        blosc==1.10.1 \
+        astroid \
+        attrs \
+        behave \
+        blosc \
         cffi \
         click \
         cma \
-        cumm-cu117 \
+        cumm-cu120 \
         cvxpy \
         cylp \
         cython \
@@ -148,59 +149,59 @@ RUN python3 -m pip --no-cache-dir install \
         datasets \
         Deprecated \
         deepspeed \
-        docutils==0.16 \
+        docutils \
         graphviz \
         grpcio \
         grpcio-tools \
         h5py \
         ipykernel \
         ipython \
-        Jinja2==3.0.3 \
+        Jinja2 \
         jupyter \
-        keras==2.2.4 \
-        lmdb==1.2.1 \
-        matplotlib>=3 \
+        keras \
+        lmdb \
+        matplotlib \
         mock \
-        nbsphinx==0.8.12 \
+        nbsphinx \
         networkx \
-        'numpy<1.24,>=1.20.5' \
-        onnx==1.14.1 \
+        numpy \
+        onnx==1.16.0 \
         onnxsim \
-        onnxruntime==1.15.1 \
+        onnxruntime==1.17.1 \
         onnxruntime-extensions \
         opencv-python \
         peft \
-        Pillow==9.3.0 \
-        pluggy==0.12.0 \
+        Pillow \
+        pluggy \
         progressbar2 \
-        protobuf==3.20.2 \
+        protobuf \
         psutil \
         ptflops \
         pybind11 \
         pydot \
         pyDOE2 \
-        pylint==2.8.3 \
+        pylint \
         pymoo \
         pytest \
         pytest-cov \
         pytorch-ignite \
         PyYAML \
-        scikit-learn==1.1.3 \
-        scipy==1.8.1 \
+        scikit-learn \
+        scipy \
         spconv-cu117 \
         sphinx \
         sphinx-autodoc-typehints \
         sphinx-jinja \
         sphinx-rtd-theme \
-        tensorboard==2.4.0 \
-        tensorboardX==2.4 \
-        timm==0.4.12 \
-        torch==1.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html \
-        torchaudio==0.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html \
-        torchtext==0.14.1 \
-        torchvision==0.14.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html \
+        tensorboard \
+        tensorboardX \
+        timm \
+        torch -f https://download.pytorch.org/whl/nightly/cu121 \
+        torchaudio -f https://download.pytorch.org/whl/nightly/cu121 \
+        torchtext -f https://download.pytorch.org/whl/nightly/cu121 \
+        torchvision -f https://download.pytorch.org/whl/nightly/cu121 \
         tqdm \
-        transformers==4.27.4 \
+        transformers \
         wget && \
     python3 -m ipykernel.kernelspec
 
@@ -222,14 +223,13 @@ RUN mkdir /opt/onnxruntime && \
 ENV PATH=/usr/local/bin:$PATH
 
 # Opencv
-# Ref: https://docs.opencv.org/3.4.19/d7/d9f/tutorial_linux_install.html
-RUN wget -q https://github.com/opencv/opencv/archive/refs/tags/3.4.19.tar.gz -O /tmp/3.4.19.tar.gz > /dev/null && \
-    tar -C /tmp -xvf /tmp/3.4.19.tar.gz > /dev/null && \
-    cd /tmp/opencv-3.4.19 && mkdir release && cd release && \
+RUN wget -q https://github.com/opencv/opencv/archive/refs/tags/4.9.0.tar.gz -O /tmp/4.9.0.tar.gz > /dev/null && \
+    tar -C /tmp -xvf /tmp/4.9.0.tar.gz > /dev/null && \
+    cd /tmp/opencv-4.9.0 && mkdir release && cd release && \
     cmake -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=release -DWITH_FFMPEG=OFF -DBUILD_TESTS=OFF -DWITH_CUDA=OFF -DBUILD_PERF_TESTS=OFF -DWITH_IPP=OFF -DENABLE_PRECOMPILED_HEADERS=OFF -DWITH_ITT=OFF .. > /dev/null && \
     make -j16 > /dev/null && \
     make -j16 install > /dev/null && \
-    rm -rf /tmp/opencv-3.4.19*
+    rm -rf /tmp/opencv-4.9.0*
 
 EXPOSE 25000
 RUN apt-get update && apt-get install -y openssh-server && rm -rf /var/lib/apt/lists/*
@@ -284,3 +284,15 @@ RUN cd /usr/local && \
     mv cutlass cutlass-3.3.0 && \
     chown -R root:users cutlass-3.3.0 && \
     ln -s cutlass-3.3.0 cutlass
+
+# Adjust for your gpu
+ENV CMAKE_CUDA_ARCHITECTURES=80
+ENV CUDA_ARCHITECTURES=80
+ENV TORCH_CUDA_ARCH_LIST="8.0"
+# actually installing aimet, is not in the official docker and aimet wants that you install it manually in the docker
+COPY . aimet
+RUN cd aimet && mkdir -p ./ThirdParty/googletest && cd ./ThirdParty/googletest && git clone https://github.com/google/googletest.git -b v1.14.x v1.14.x
+RUN cd /aimet && /bin/bash -c "source packaging/envsetup.sh" && mkdir build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_CUDA=ON -DENABLE_TORCH=ON -DENABLE_TENSORFLOW=OFF && make -j16 && make install
+ENV PYTHONPATH=/aimet/build/staging/universal/lib/x86_64-linux-gnu:/aimet/build/staging/universal/lib/python:$PYTHONPATH
+ENV export LD_LIBRARY_PATH=/aimet/build/staging/universal/lib/x86_64-linux-gnu:/aimet/build/staging/universal/lib/python:$LD_LIBRARY_PATH
+ENV export AIMET_VARIANT="torch-gpu"
